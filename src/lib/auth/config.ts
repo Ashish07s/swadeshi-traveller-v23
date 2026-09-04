@@ -26,8 +26,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         try {
-          const email = credentials.email as string;
-          const password = credentials.password as string;
+          const email = String(credentials.email);
+          const password = String(credentials.password);
 
           const user = await prisma.user.findUnique({
             where: {
@@ -75,8 +75,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as Role;
+        session.user.id = String(token.id ?? "");
+        session.user.role = (token.role as Role) ?? Role.sales;
       }
 
       return session;
@@ -146,13 +146,6 @@ declare module "next-auth" {
   }
 
   interface User {
-    role: Role;
-  }
-}
-
-declare module "next-auth/jwt" {
-  interface JWT {
-    id: string;
     role: Role;
   }
 }
