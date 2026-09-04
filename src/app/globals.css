@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Barlow+Condensed:wght@600;700;800&display=swap');
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground; font-family: "Poppins", system-ui, sans-serif; }
+}
+
+@layer components {
+  .btn-primary {
+    @apply flex items-center gap-2 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed;
+    background-color: #00C46C;
+  }
+  .btn-primary:hover { background-color: #00a85b; }
+  .btn-secondary {
+    @apply flex items-center gap-2 bg-white border text-slate-600 px-4 py-2 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors;
+    border-color: #E2E8F0;
+  }
+  .btn-ghost {
+    @apply flex items-center gap-1.5 text-slate-500 px-3 py-1.5 rounded-xl text-xs font-medium hover:bg-slate-100 transition-colors;
+  }
+  .input {
+    @apply w-full border rounded-xl px-3 py-2.5 text-sm outline-none bg-white placeholder:text-slate-400 transition-all;
+    border-color: #E2E8F0;
+  }
+  .input:focus {
+    border-color: #00C46C;
+    box-shadow: 0 0 0 3px rgba(0, 196, 108, 0.15);
+  }
+  .label { @apply block text-xs font-medium text-slate-600 mb-1.5; }
+  .card-p { @apply bg-white rounded-2xl border p-5; border-color: #E2E8F0; }
+  .badge { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold; }
+  .th { @apply px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide bg-slate-50 border-b whitespace-nowrap; border-color: #E2E8F0; }
+  .td { @apply px-4 py-3; }
+  .shadow-card { box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.08); }
+  .shadow-card-hover { box-shadow: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06); }
+  .brand-green { color: #00C46C; }
+  .brand-dark { color: #004A36; }
+  .bg-brand { background-color: #00C46C; }
+  .bg-brand-dark { background-color: #004A36; }
+}
+
+:root {
+  --brand: #00C46C;
+  --brand-dark: #004A36;
+  --brand-light: #e6f9f0;
+  --background: #F8FAFC;
+  --foreground: #0f172a;
+  --border: #e2e8f0;
+  --border-border: #e2e8f0;
+}

@@ -1,0 +1,626 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  sales
+  ticket_admin
+  logistics
+  operations
+  finance
+  admin
+  founder
+}
+
+enum PaymentApprovalStatus {
+  Pending
+  Submitted
+  UnderReview
+  Approved
+  Rejected
+  Processed
+  Cancelled
+}
+
+enum TicketInventoryStatus {
+  Available
+  Reserved
+  Assigned
+  Cancelled
+  Used
+}
+
+enum VendorType {
+  Hotel
+  Transport
+  Guide
+  TatkalAgent
+  Other
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  password      String?
+  role          Role     @default(sales)
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  bookings      Booking[]
+  auditLogs     AuditLog[]
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Customer {
+  id            String   @id @default(cuid())
+  customerId    String   @unique
+  name          String
+  phone         String
+  whatsapp      String?
+  email         String?
+  city          String?
+  notes         String?
+  totalBookings Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  bookings      Booking[]
+  @@index([phone])
+  @@map("customers")
+}
+
+model TripMaster {
+  id          String   @id @default(cuid())
+  name        String
+  destination String
+  category    String
+  defaultDays Int?
+  basePrice   Float?
+  inclusions  String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  trips       Trip[]
+  @@map("trip_masters")
+}
+
+// A specific scheduled departure of a trip (e.g. "Goa Weekend — 10 Sep 2026").
+// TripMaster is the reusable template (name/category/current price); Trip is
+// one real instance of it going out on a specific date, and is the single
+// record every other module (Sales, Logistics, Operations, Finance) links to
+// via tripId — replacing the old pattern of matching on tripName strings.
+model Trip {
+  id                String   @id @default(cuid())
+  tripCode          String   @unique
+  tripMasterId      String?
+  name              String
+  category          String
+  natureOfTrip      String   @default("GroupDeparture")
+  destination       String?
+  departureLocation String?
+  departureDate     DateTime
+  returnDate        DateTime?
+  capacity          Int?
+  // Snapshotted from TripMaster.basePrice at the moment this departure was
+  // first created. If Trip Master's price changes later, bookings already
+  // tied to this Trip (and new bookings joining the same departure) keep
+  // using this locked-in price rather than silently picking up the new one.
+  basePrice         Float?
+  status            String   @default("Active")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  tripMaster        TripMaster?        @relation(fields: [tripMasterId], references: [id])
+  bookings          Booking[]
+  hotelBookings     HotelBooking[]
+  transportBookings TransportBooking[]
+  calendarEvents    CalendarEvent[]
+  @@index([departureDate])
+  @@index([tripMasterId])
+  @@map("trips")
+}
+
+model Booking {
+  id                  String   @id @default(cuid())
+  bookingCode         String   @unique
+  customerId          String
+  userId              String
+  customerName        String
+  phoneNumber         String
+  whatsapp            String?
+  city                String?
+  tripType            String   @default("Weekend")
+  tripName            String
+  natureOfTrip        String   @default("GroupDeparture")
+  destination         String?
+  journeyDate         DateTime
+  returnDate          DateTime?
+  duration            Int?
+  paxCount            Int      @default(1)
+  roomType            String?
+  accommodationType   String?
+  onwardTicketType    String?
+  onwardClass         String?
+  onwardFrom          String?
+  returnTicketType    String?
+  returnClass         String?
+  returnTo            String?
+  basePackageCost     Float    @default(0)
+  onwardDifference    Float    @default(0)
+  onwardDiffDesc      String?
+  onwardDiffRequired  Boolean  @default(false)
+  returnDifference    Float    @default(0)
+  returnDiffDesc      String?
+  returnDiffRequired  Boolean  @default(false)
+  discountType        String?
+  discountValue       Float    @default(0)
+  discountAmount      Float    @default(0)
+  discountReason      String?
+  discountApprovedBy  String?
+  discountApprovalStatus String @default("Pending")
+  additionalCharges   Float    @default(0)
+  additionalChargesDesc String?
+  finalPackageCost    Float    @default(0)
+  ticketAdvanceAmount Float    @default(0)
+  actualTicketCost    Float    @default(0)
+  ticketAdvanceBalance Float   @default(0)
+  advancePaid         Float    @default(0)
+  totalPaid           Float    @default(0)
+  balanceDue          Float    @default(0)
+  refundAmount        Float    @default(0)
+  paymentStatus       String   @default("UNPAID")
+  gstType             String   @default("NonGST")
+  leadOrigin          String   @default("WhatsApp")
+  salesPersonName     String?
+  groupId             String?
+  transferredFrom     String?
+  originalTrip        String?
+  privateItinerary    String?
+  status              String   @default("Active")
+  cancelReason        String?
+  operationalStatus   String   @default("Pending")
+  notes               String?
+  tripId              String?
+  hotelRequired       Boolean  @default(true)
+  transportRequired   Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  customer            Customer @relation(fields: [customerId], references: [id])
+  user                User     @relation(fields: [userId], references: [id])
+  trip                Trip?    @relation(fields: [tripId], references: [id])
+  passengers          BookingPassenger[]
+  payments            Payment[]
+  ticketAllocations   TicketAllocation[]
+  issues              CustomerIssue[]
+  refunds             Refund[]
+  feedback            TripFeedback?
+  auditLogs           AuditLog[]
+  calendarEvents      CalendarEvent[]
+  @@index([customerId])
+  @@index([journeyDate])
+  @@index([status])
+  @@index([tripId])
+  @@map("bookings")
+}
+
+model BookingPassenger {
+  id           String   @id @default(cuid())
+  bookingId    String
+  name         String
+  age          Int?
+  gender       String?
+  phone        String?
+  idType       String?
+  idNumber     String?
+  seatNumber   String?
+  pnrNumber    String?
+  ticketStatus String   @default("Pending")
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  booking      Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ticketAllocation TicketAllocation?
+  @@map("booking_passengers")
+}
+
+model Payment {
+  id              String                @id @default(cuid())
+  paymentCode     String                @unique
+  bookingId       String
+  amount          Float
+  paymentMethod   String
+  utrNumber       String?               @unique
+  paymentDate     DateTime              @default(now())
+  enteredBy       String?
+  enteredByRole   String?
+  approvalStatus  PaymentApprovalStatus @default(Pending)
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectedBy      String?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  processedAt     DateTime?
+  notes           String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  booking         Booking               @relation(fields: [bookingId], references: [id])
+  auditLogs       AuditLog[]
+  @@index([bookingId])
+  @@index([approvalStatus])
+  @@map("payments")
+}
+
+model TicketInventory {
+  id              String                @id @default(cuid())
+  inventoryCode   String                @unique
+  travelMode      String
+  operator        String?
+  trainFlightNo   String?
+  fromLocation    String
+  toLocation      String
+  travelDate      DateTime
+  returnDate      DateTime?
+  departureTime   String?
+  arrivalTime     String?
+  coachClass      String?
+  totalSeats      Int                   @default(1)
+  availableSeats  Int                   @default(1)
+  allocatedSeats  Int                   @default(0)
+  costPrice       Float
+  sellingPrice    Float
+  status          TicketInventoryStatus @default(Available)
+  pnrNumber       String?
+  ticketNumber    String?
+  notes           String?
+  bookedBy        String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  allocations     TicketAllocation[]
+  @@index([travelDate])
+  @@map("ticket_inventory")
+}
+
+model TicketAllocation {
+  id             String   @id @default(cuid())
+  allocationCode String   @unique @default(cuid())
+  ticketId       String
+  bookingId      String
+  passengerId    String?  @unique
+  seatNumber     String?
+  coachNumber    String?
+  pnrNumber      String?
+  costPrice      Float
+  sellingPrice   Float
+  allocatedBy    String?
+  status         String   @default("Allocated")
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ticket         TicketInventory   @relation(fields: [ticketId], references: [id])
+  booking        Booking           @relation(fields: [bookingId], references: [id])
+  passenger      BookingPassenger? @relation(fields: [passengerId], references: [id])
+  @@index([bookingId])
+  @@map("ticket_allocations")
+}
+
+model Vendor {
+  id           String     @id @default(cuid())
+  vendorCode   String     @unique @default(cuid())
+  name         String
+  type         VendorType
+  contactName  String?
+  phone        String?
+  email        String?
+  city         String?
+  address      String?
+  gstNumber    String?
+  bankName     String?
+  accountNo    String?
+  ifscCode     String?
+  priceRate    Float?
+  rateUnit     String?
+  isActive     Boolean    @default(true)
+  notes        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  hotelBookings   HotelBooking[]
+  transports      TransportBooking[]
+  @@map("vendors")
+}
+
+model HotelBooking {
+  id             String   @id @default(cuid())
+  hotelCode      String   @unique @default(cuid())
+  tripName       String?
+  tripId         String?
+  bookingId      String?
+  vendorId       String?
+  hotelName      String
+  city           String?
+  area           String?
+  checkIn        DateTime
+  checkOut       DateTime
+  nights         Int      @default(1)
+  roomCount      Int      @default(1)
+  guestCount     Int      @default(1)
+  roomType       String?
+  ratePerRoom    Float    @default(0)
+  totalCost      Float    @default(0)
+  paidAmount     Float    @default(0)
+  mealPlan       String?
+  confirmationNo String?
+  hotelPhone     String?
+  status         String   @default("Pending")
+  paymentStatus  String   @default("Unpaid")
+  specialRequests String?
+  bookedBy       String?
+  voucherGenerated Boolean @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  vendor         Vendor?  @relation(fields: [vendorId], references: [id])
+  trip           Trip?    @relation(fields: [tripId], references: [id])
+  @@index([tripId])
+  @@index([bookingId])
+  @@index([status])
+  @@map("hotel_bookings")
+}
+
+model TransportBooking {
+  id             String   @id @default(cuid())
+  transportCode  String   @unique @default(cuid())
+  tripName       String?
+  tripId         String?
+  bookingId      String?
+  vendorId       String?
+  vehicleType    String?
+  vehicleNumber  String?
+  driverName     String?
+  driverPhone    String?
+  capacity       Int?
+  pickupLocation String?
+  dropLocation   String?
+  pickupDate     DateTime?
+  pickupTime     String?
+  cost           Float    @default(0)
+  paidAmount     Float    @default(0)
+  status         String   @default("Pending")
+  paymentStatus  String   @default("Unpaid")
+  notes          String?
+  bookedBy       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  vendor         Vendor?  @relation(fields: [vendorId], references: [id])
+  trip           Trip?    @relation(fields: [tripId], references: [id])
+  @@index([tripId])
+  @@index([bookingId])
+  @@index([status])
+  @@map("transport_bookings")
+}
+
+model CustomerIssue {
+  id           String   @id @default(cuid())
+  tokenNumber  String   @unique @default(cuid())
+  bookingId    String
+  concern      String
+  responsibility String?
+  assignedTo   String?
+  status       String   @default("Open")
+  ticketClosed Boolean  @default(false)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  booking      Booking  @relation(fields: [bookingId], references: [id])
+  @@map("customer_issues")
+}
+
+model Refund {
+  id              String   @id @default(cuid())
+  refundCode      String   @unique @default(cuid())
+  bookingId       String
+  reason          String
+  amount          Float
+  paymentMethod   String?
+  utrNumber       String?
+  status          String   @default("Requested")
+  authorisedBy    String?
+  paymentConfirmed Boolean @default(false)
+  financeNotified  Boolean @default(false)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  booking         Booking  @relation(fields: [bookingId], references: [id])
+  @@map("refunds")
+}
+
+model TripFeedback {
+  id                  String   @id @default(cuid())
+  bookingId           String   @unique
+  accommodationRating Int?
+  transportRating     Int?
+  placesRating        Int?
+  guideRating         Int?
+  overallRating       Int?
+  comments            String?
+  createdAt           DateTime @default(now())
+  booking             Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  @@map("trip_feedback")
+}
+
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  bookingId   String?
+  tripName    String?
+  tripId      String?
+  eventType   String
+  title       String
+  description String?
+  date        DateTime
+  customerName String?
+  destination String?
+  department  String?
+  status      String   @default("Active")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  booking     Booking? @relation(fields: [bookingId], references: [id])
+  trip        Trip?    @relation(fields: [tripId], references: [id])
+  @@index([date])
+  @@index([tripId])
+  @@map("calendar_events")
+}
+
+model Lead {
+  id           String   @id @default(cuid())
+  customerName String
+  phone        String
+  whatsapp     String?
+  email        String?
+  city         String?
+  source       String   @default("WhatsApp")
+  tripInterest String?
+  tripType     String?
+  travelDate   String?
+  budget       Float?
+  groupSize    Int?
+  stage        String   @default("New")
+  priority     String   @default("Medium")
+  assignedTo   String?
+  notes        String?
+  convertedToBookingId String?
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  followUps    FollowUp[]
+  @@map("leads")
+}
+
+model FollowUp {
+  id           String   @id @default(cuid())
+  leadId       String
+  type         String   @default("Call")
+  notes        String?
+  outcome      String?
+  nextFollowUp DateTime?
+  doneBy       String?
+  createdAt    DateTime @default(now())
+  lead         Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  @@map("follow_ups")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  userName  String?
+  action    String
+  entity    String
+  entityId  String?
+  bookingId String?
+  paymentId String?
+  module    String?
+  oldValue  Json?
+  newValue  Json?
+  reason    String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id])
+  booking   Booking? @relation(fields: [bookingId], references: [id])
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+  @@index([entity])
+  @@index([bookingId])
+  @@map("audit_logs")
+}
+
+// Operations-owned guide roster. Kept intentionally free of any payment/fee
+// fields — guide payment, if ever needed, belongs to Finance, not here.
+model Guide {
+  id             String   @id @default(cuid())
+  guideCode      String   @unique @default(cuid())
+  name           String
+  phone          String?
+  email          String?
+  city           String?
+  languages      String?
+  specialization String?
+  experience     String?
+  status         String   @default("Active") // Active | Inactive | OnLeave
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  assignments    GuideAssignment[]
+  @@index([status])
+  @@map("guides")
+}
+
+// One row per booking, mirroring how HotelBooking/TransportBooking already
+// reference their booking via a plain bookingId (no formal Prisma relation
+// back onto Booking) rather than introducing a new relation shape.
+model GuideAssignment {
+  id         String   @id @default(cuid())
+  bookingId  String   @unique
+  guideId    String?
+  status     String   @default("Pending") // Pending | Assigned | Confirmed | Completed | Cancelled
+  notes      String?
+  assignedBy String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  guide      Guide?   @relation(fields: [guideId], references: [id])
+  @@index([guideId])
+  @@index([status])
+  @@map("guide_assignments")
+}
+
+model BankAccount {
+  id          String   @id @default(cuid())
+  accountName String
+  bankName    String
+  accountNo   String
+  ifscCode    String?
+  upiId       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  @@map("bank_accounts")
+}
